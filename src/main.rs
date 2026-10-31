@@ -42,6 +42,7 @@ impl Matrix {
         print!("{}",matrix_string);
     }
     fn size(&self) -> usize {
+        println!("{}, {}", std::mem::size_of::<Matrix>(),std::mem::size_of_val(&*self.data));
         std::mem::size_of_val(&*self.data) + std::mem::size_of::<Matrix>()
     }
     fn print_size(&self) {
@@ -90,20 +91,32 @@ fn NaiveMultiplication(matr_a: &Matrix, matr_b: &Matrix) -> Matrix {
     }
     matr_c
 }
+
+fn StrassandMultiplication(matr_a: &Matrix, matr_b: &Matrix) -> Matrix {
+    // Make sure A & B are properly sized (2^n) x (2^n).
+    
+    // Begin dividing them into (2x2) chunks recursively.
+
+    // Once at (2x2) Chunks use 7 M Matrices.
+    
+    // Combine.
+    let mut matr_c: Matrix = Matrix{dim: (matr_a.dim.0, matr_b.dim.1), data: Vec::new()};
+    // c_ij = a_i1*b1_j + a_i2+b2_j + ... + a_in*b_nj 
+    let matr_d = NaiveMultiplication(&matr_a, &matr_b);
+    matr_a.print_size();
+    matr_c
+}
 fn main() {
-    let a: Matrix = Matrix{dim: (2,3), data: vec![1_f64, 4_f64, 5_f64, 2_f64, 3_f64, 7_f64]};
-    let b: Matrix = Matrix{dim: (3,2), data: vec![0_f64, 1_f64, 4_f64, 0_f64, 5_f64, 3_f64]};
+    let a: Matrix = Matrix{dim: (3,3), data: vec![1_f64, 4_f64, 5_f64, 2_f64, 3_f64, 7_f64,0_f64,0_f64,0_f64]};
+    let b: Matrix = Matrix{dim: (3,3), data: vec![0_f64, 1_f64, 0_f64, 4_f64, 0_f64, 0_f64, 5_f64, 3_f64, 0_f64]};
     let c: Matrix = NaiveMultiplication(&a, &b);
-    println!("==== NAIVE MULTIPLICATION ====");
-    println!(">> A <<");
-    a.print();
-    //a.print_size();
-    println!(">> B <<");
-    b.print();
-    //b.print_size();
-    println!("OP: AB = C");
-    println!(">> C <<");
-    c.print();
+
+    let d: Matrix = Matrix{dim: (2,3), data: vec![1_f64, 4_f64, 5_f64, 2_f64, 3_f64, 7_f64]};
+    let e: Matrix = Matrix{dim: (3,2), data: vec![0_f64, 1_f64, 4_f64, 0_f64, 5_f64, 3_f64]};
+    let f: Matrix = NaiveMultiplication(&d, &e);
+    //let g: Matrix = StrassandMultiplication(&d, &e);
+    //c.print();
+    //f.print();
     //c.print_size();
     println!("MEMORY USED: {} BYTES", a.size() + b.size() + c.size());
 }
