@@ -187,7 +187,6 @@ impl MulAssign<f64> for Matrix64 {
         }
     }
 }
-
 impl Mul<f32> for &Matrix64 {
     type Output = Matrix64;
     fn mul(self, rhs: f32) -> Self::Output {
