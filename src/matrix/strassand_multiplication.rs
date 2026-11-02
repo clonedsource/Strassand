@@ -1,5 +1,13 @@
 use super::*;
 
+fn partitioned_multiplication(borrowed_matr: &mut Matrix<f64>, dim: usize, location_a: (usize, usize), location_b: (usize, usize)) {
+
+}
+
+fn partitioned_addition(borrowed_matr: &mut Matrix<f64>, dim: usize, location_a: (usize, usize), location_b: (usize, usize)) {
+
+}
+
 pub fn strassand_method(matr_a: &Matrix<f64>, matr_b: &Matrix<f64>) -> Result<Matrix<f64>, &'static str> {
     if matr_a.dim.1 != matr_b.dim.0 {return Err("Cannot Multiply: (mxn)(qxr) where n != q.")}
 
@@ -30,9 +38,25 @@ pub fn strassand_method(matr_a: &Matrix<f64>, matr_b: &Matrix<f64>) -> Result<Ma
             let max_matr_b_dim: usize = matr_b.dim.0.max(matr_b.dim.1);
             max_matr_a_dim.max(max_matr_b_dim)
         };
+       
         (padder(matr_a, max_matr_dim), padder(matr_b, max_matr_dim))
     };
 
+    // Create Result Matrix C.
+    let mut padded_matr_c: Matrix<f64> = {
+        let max_matr_dim: usize = {
+            let max_matr_a_dim: usize = matr_a.dim.0.max(matr_a.dim.1);
+            let max_matr_b_dim: usize = matr_b.dim.0.max(matr_b.dim.1);
+            max_matr_a_dim.max(max_matr_b_dim)
+        };
+        let log_matr_dim: usize = ((max_matr_dim as f64).log2().ceil() as u64) as usize;
+        let padded_matr_dim: usize = 2 << log_matr_dim - 1;
+        Matrix::new(
+            (padded_matr_dim, padded_matr_dim), 
+            Some(vec![0_f64;padded_matr_dim << log_matr_dim])
+        )
+    };
+    padded_matr_c.print((true, true));
     // Generate Appropriately sized matrix.
     let mut matr_c: Matrix<f64> = Matrix::new((matr_a.dim.0, matr_b.dim.1), Some(vec![0_f64;matr_a.dim.0*matr_b.dim.1]));
     
@@ -46,6 +70,11 @@ pub fn strassand_method(matr_a: &Matrix<f64>, matr_b: &Matrix<f64>) -> Result<Ma
         depth -= 1;
         let magic_exponent: usize = 1 << (depth << 1);
         let partition_dim: usize = padded_matr_a.dim.0 >> depth;
+
+        // Do multiplications here.
+        
+        // Do additions here.
+
         println!("{}, {}x{}", magic_exponent, partition_dim, partition_dim); // 2n, 1/2
         //todo()! make partition vectors for a & b, then do math. then combine.
     }
