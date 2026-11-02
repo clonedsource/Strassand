@@ -3,7 +3,9 @@ use std::{fmt::Display, ops::{Add, AddAssign, Index, Mul, MulAssign, Sub, SubAss
 use rand::prelude::*;
 
 mod special_matrices;
-pub use special_matrices::*;
+mod naive_multiplication;
+mod strassand_multiplication;
+pub use {special_matrices::*, naive_multiplication::*, strassand_multiplication::*};
 pub trait MatrixConstructor<Numeric = Self> {
     type Output;
     fn new(dim: (usize, usize), data: Option<Vec<Numeric>>) -> Self::Output;
