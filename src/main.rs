@@ -1,7 +1,10 @@
 #![allow(non_snake_case, dead_code, unused_mut, unused_variables)]
 mod matrix;
 use matrix::*;
-use std::{env, thread::sleep, time::{Instant}};
+mod terminal;
+use terminal::*;
+
+use std::{time::{Instant}};
 fn REF64(matrix: &mut Matrix<f64>) {
     matrix.print((false,false));
     println!("+++++ REF +++++");
@@ -24,36 +27,35 @@ fn REF64(matrix: &mut Matrix<f64>) {
 
 fn main() {
     //env::args().for_each(|arg| println!("{}", arg));
-
+    terminal::begin();
     let (mut b, mut c) = (
-        random_matrix::<f64>((700,300)),
-        random_matrix::<f64>((300,700))
+        random_matrix::<f64>((5000,5000)),
+        random_matrix::<f64>((5000,5000))
     );
-    //b.print((false,false));
+    println!("A(size: {}, dim: {})", b.size_str(), b.dim_str());
     println!("x");
-    //c.print((false,false));
+    println!("B(size: {}, dim: {})", c.size_str(), c.dim_str());
     println!("=");
     println!("+++++ NAIVE MATR MULTI +++++");
-    let (mut now, mut elapsed) = (Instant::now(), std::time::Duration::new(0,0));
-    let computed_naive = naive_method(&b, &c);
-    elapsed = now.elapsed();
+    let (mut now, mut _elapsed) = (Instant::now(), std::time::Duration::new(0,0));
+    let (computed_naive, multiplications1) = naive_method(&b, &c);
+    _elapsed = now.elapsed();
     //match computed_naive {
     //    Ok(matr) => matr.print((false,false)),
     //    Err(res) => println!("{}", res),
     //};
-    println!("+++++ FINISHED ({:?}) +++++", elapsed);
+    println!("+++++ FINISHED ({:?}, {} multiplications) +++++", _elapsed, multiplications1);
     println!("+++++ STRASSEN MATR MULTI +++++");
     now = Instant::now();
-    let computed_strassen = strassen_method(&b, &c);
-    elapsed = now.elapsed();
+    let (computed_strassen, multiplications2) = strassen_method(&b, &c);
+    _elapsed = now.elapsed();
     //match computed_strassen {
     //    Ok(matr) => matr.print((false,false)),
     //    Err(res) => println!("{}", res),
     //};
-    println!("+++++ FINISHED ({:?}) +++++", elapsed);
-    //REF64(&mut Matrix::new((4,4), 
-    //Some(vec![-4.0,4.0,0.0,0.0,-3.0,3.0,0.0,0.0,0.0,0.0,-6.0,3.0,0.0,0.0,4.0,-2.0]))
-    //);
+    println!("+++++ FINISHED ({:?}, {} multiplications) +++++", _elapsed, multiplications2);
     println!("===== MATRIX USED MEMORY =====");
-
+    println!("{}",b.size_str());
+    println!("{}",c.size_str());
+    println!("{}",&computed_strassen.unwrap().size_str());
 }

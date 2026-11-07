@@ -67,7 +67,7 @@ impl<T: Display> MatrixFormatters for Matrix<T> {
         let size_bytes: usize = self.size();
         // GB_COUNT, FMT_STR
         return format!("{} {}",
-            ((size_bytes as f64) / (1000_f64.powi((size_bytes as f64).log(1000_f64).floor() as i32))),
+            ((size_bytes as usize) / (1000_f64.powi((size_bytes as f64).log(1000_f64).floor() as i32)) as usize),
             match (size_bytes as f64).log(1000_f64) as u8 {
                 3 => "GB", 2 => "MB", 1 => "KB", 0 => "B", _ => "?B",
             }

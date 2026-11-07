@@ -1,5 +1,5 @@
 use super::*;
-const CUTOFF: usize = 64;
+const CUTOFF: usize = 32;
 fn padder(matr: &Matrix<f64>, max_matr_dim: usize) -> Matrix<f64> {
     let log_matr_dim: usize = ((max_matr_dim as f64).log2().ceil() as u64) as usize;
     let padded_matr_dim: usize = 2 << log_matr_dim - 1;
@@ -66,30 +66,37 @@ fn join(matr_a11: Matrix<f64>, matr_a12: Matrix<f64>, matr_a21: Matrix<f64>, mat
     }
     joined_matr
 }
-fn strassen_recurse(matr_a: &Matrix<f64>, matr_b: &Matrix<f64>) -> Matrix<f64> {
+fn strassen_recurse(matr_a: &Matrix<f64>, matr_b: &Matrix<f64>) -> (Matrix<f64>, usize) {
     // Goes back to traditional matrix multiplication when the matrix is small enough.
     if matr_a.dim.0 <= CUTOFF {
-        return naive_method(&matr_a, &matr_b).unwrap();
+        let naive = naive_method(&matr_a, &matr_b);
+        return (naive.0.unwrap(), naive.1);
     }
     let (a11, a12, a21, a22) = quadrants(&matr_a);
     let (b11, b12, b21, b22) = quadrants(&matr_b);
-   
-    let m1: Matrix<f64> = strassen_recurse(&(&a11 + &a22), &(&b11 + &b22));
-    let m2: Matrix<f64> = strassen_recurse(&(&a21 + &a22), &b11);
-    let m3: Matrix<f64> = strassen_recurse(&a11, &(&b12 - &b22));
-    let m4: Matrix<f64> = strassen_recurse(&a22, &(&b21 - &b11));
-    let m5: Matrix<f64> = strassen_recurse(&(&a11 + &a12), &b22);
-    let m6: Matrix<f64> = strassen_recurse(&(&a21 - &a11), &(&b11 + &b12));
-    let m7: Matrix<f64> = strassen_recurse(&(&a12 - &a22), &(&b21 + &b22));
-    join(
+    
+    let mut multiplications: usize = 0;
+    let mut strassen_recurse_macro = |a: &Matrix<f64>, b: &Matrix<f64>|-> Matrix<f64> {
+        let (matr, multi) = strassen_recurse(a, b);
+        multiplications += multi;
+        return matr;
+    };
+    let m1: Matrix<f64> = strassen_recurse_macro(&(&a11 + &a22), &(&b11 + &b22));
+    let m2: Matrix<f64> = strassen_recurse_macro(&(&a21 + &a22), &b11);
+    let m3: Matrix<f64> = strassen_recurse_macro(&a11, &(&b12 - &b22));
+    let m4: Matrix<f64> = strassen_recurse_macro(&a22, &(&b21 - &b11));
+    let m5: Matrix<f64> = strassen_recurse_macro(&(&a11 + &a12), &b22);
+    let m6: Matrix<f64> = strassen_recurse_macro(&(&a21 - &a11), &(&b11 + &b12));
+    let m7: Matrix<f64> = strassen_recurse_macro(&(&a12 - &a22), &(&b21 + &b22));
+    (join(
         &(&m1 + &m4) + &(&m7 - &m5),
         &m3 + &m5,
         &m2 + &m4,
         &(&m1 - &m2) + &(&m3 + &m6)
-    )
+    ), multiplications)
 }
-pub fn strassen_method(matr_a: &Matrix<f64>, matr_b: &Matrix<f64>) -> Result<Matrix<f64>, &'static str> {
-    if matr_a.dim.1 != matr_b.dim.0 {return Err("Cannot Multiply: (mxn)(qxr) where n != q.")}
+pub fn strassen_method(matr_a: &Matrix<f64>, matr_b: &Matrix<f64>) -> (Result<Matrix<f64>, &'static str>, usize) {
+    if matr_a.dim.1 != matr_b.dim.0 {return (Err("Cannot Multiply: (mxn)(qxr) where n != q."), 0)}
     if matr_a.dim.0 <= CUTOFF {
         return naive_method(&matr_a, &matr_b);
     }
@@ -105,11 +112,11 @@ pub fn strassen_method(matr_a: &Matrix<f64>, matr_b: &Matrix<f64>) -> Result<Mat
         (padder(matr_a, max_matr_dim), padder(matr_b, max_matr_dim))
     };
     // Call Strassen Recursive Function.
-    let padded_result_matr_c: Matrix<f64> = strassen_recurse(&padded_matr_a, &padded_matr_b);
+    let (padded_result_matr_c, multiplications) = strassen_recurse(&padded_matr_a, &padded_matr_b);
     //padded_result_matr_c.print((true, true));
     // Generate Appropriately sized matrix.
     let mut matr_c: Matrix<f64> = Matrix::new((matr_a.dim.0, matr_b.dim.1), Some(vec![0_f64;matr_a.dim.0*matr_b.dim.1]));
     //matr_c.print((true, true));
-    Ok(matr_c)
+    (Ok(matr_c), multiplications)
 
 }

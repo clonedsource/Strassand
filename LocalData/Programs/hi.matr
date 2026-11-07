@@ -1,0 +1,5 @@
+define burger 5;
+dim amatr(3,3) [1,0,0,0,5,0,0,0,1];
+op multiply amatr 2;
+call random_matrix(5,3) (m1);
+call print(m1, true, true) ();
