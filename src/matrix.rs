@@ -4,8 +4,8 @@ use rand::prelude::*;
 
 mod special_matrices;
 mod naive_multiplication;
-mod strassand_multiplication;
-pub use {special_matrices::*, naive_multiplication::*, strassand_multiplication::*};
+mod strassen_multiplication;
+pub use {special_matrices::*, naive_multiplication::*, strassen_multiplication::*};
 pub trait MatrixConstructor<Numeric = Self> {
     type Output;
     fn new(dim: (usize, usize), data: Option<Vec<Numeric>>) -> Self::Output;
@@ -301,7 +301,6 @@ pub fn compute_matrix<F, T>(dim: (usize, usize), mut closure: F) -> Matrix<T> wh
     for i in 0 .. random_vec.len() {
         let row: usize = i + 1 / dim.1;
         let col: usize = ((i + 1) % dim.1) + 1;
-        println!("{}, {}", row, col);
         random_vec[i] = closure(row, col);
     }
     Matrix::new(dim, Some(random_vec))

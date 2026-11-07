@@ -13,7 +13,8 @@ fn REF64(matrix: &mut Matrix<f64>) {
             let rj_idx: usize = matrix.index(ri + 1,n);
             let factor: f64 = -matrix.data[rj_idx] / matrix.data[ri_idx];
             matrix.ero3(n, ri + 1, factor);
-            //matrix.print((false,false));
+            matrix.print((false,false));
+            println!("=========");
         }
     }
     println!("+++++ FINISHED ({:?}) +++++", now.elapsed());
@@ -22,36 +23,37 @@ fn REF64(matrix: &mut Matrix<f64>) {
 }
 
 fn main() {
-    env::args().for_each(|arg| println!("{}", arg));
+    //env::args().for_each(|arg| println!("{}", arg));
 
     let (mut b, mut c) = (
-        random_matrix::<f64>((5,3)),
-        random_matrix::<f64>((3,5))
+        random_matrix::<f64>((700,300)),
+        random_matrix::<f64>((300,700))
     );
-    b.print((false,false));
+    //b.print((false,false));
     println!("x");
-    c.print((false,false));
+    //c.print((false,false));
     println!("=");
     println!("+++++ NAIVE MATR MULTI +++++");
     let (mut now, mut elapsed) = (Instant::now(), std::time::Duration::new(0,0));
     let computed_naive = naive_method(&b, &c);
     elapsed = now.elapsed();
-    match computed_naive {
-        Ok(matr) => matr.print((false,false)),
-        Err(res) => println!("{}", res),
-    };
+    //match computed_naive {
+    //    Ok(matr) => matr.print((false,false)),
+    //    Err(res) => println!("{}", res),
+    //};
     println!("+++++ FINISHED ({:?}) +++++", elapsed);
-
-    println!("+++++ STRASSAND MATR MULTI +++++");
+    println!("+++++ STRASSEN MATR MULTI +++++");
     now = Instant::now();
-    let computed_strassand = strassand_method(&b, &c);
+    let computed_strassen = strassen_method(&b, &c);
     elapsed = now.elapsed();
-    match computed_strassand {
-        Ok(matr) => matr.print((false,false)),
-        Err(res) => println!("{}", res),
-    };
+    //match computed_strassen {
+    //    Ok(matr) => matr.print((false,false)),
+    //    Err(res) => println!("{}", res),
+    //};
     println!("+++++ FINISHED ({:?}) +++++", elapsed);
-
+    //REF64(&mut Matrix::new((4,4), 
+    //Some(vec![-4.0,4.0,0.0,0.0,-3.0,3.0,0.0,0.0,0.0,0.0,-6.0,3.0,0.0,0.0,4.0,-2.0]))
+    //);
     println!("===== MATRIX USED MEMORY =====");
 
 }
