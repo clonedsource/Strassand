@@ -114,6 +114,7 @@ fn prgm_fns_handle() {
 
         // Handle the choice, handle returning false is only done by the exit condition.
         if !(handle(&choice)) {break;}
+        std::thread::sleep(Duration::from_secs(4));
         clear_screen();
     }
     println!("Exiting!");

@@ -1,5 +1,12 @@
-define burger 5;
-dim amatr(3,3) [1,0,0,0,5,0,0,0,1];
-op multiply amatr 2;
-call random_matrix(5,3) (m1);
-call print(m1, true, true) ();
+define burger 500;
+define const2 10;
+op add burger const2 second;
+call random_matrix(second,burger) a_matr;
+call random_matrix(burger,second) b_matr;
+
+call naive_multiplication(a_matr,b_matr) c_matr c_matr_multi_count;
+call print(c_matr_multi_count);
+call print(=========);
+call strassen_multiplication(a_matr,b_matr) c_matrs c_matr_multi_counts;
+call print(c_matrs,true,true);
+call print(c_matr_multi_counts);

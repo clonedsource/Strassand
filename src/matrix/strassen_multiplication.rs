@@ -116,6 +116,13 @@ pub fn strassen_method(matr_a: &Matrix<f64>, matr_b: &Matrix<f64>) -> (Result<Ma
     //padded_result_matr_c.print((true, true));
     // Generate Appropriately sized matrix.
     let mut matr_c: Matrix<f64> = Matrix::new((matr_a.dim.0, matr_b.dim.1), Some(vec![0_f64;matr_a.dim.0*matr_b.dim.1]));
+    for m in 1..matr_c.dim.0+1{
+        for n in 1..matr_c.dim.1+1 {
+            let cindex = matr_c.index(m,n);
+            let pcindex = padded_result_matr_c.index(m,n);
+            matr_c.data[cindex] = padded_result_matr_c.data[pcindex];
+        }
+    }
     //matr_c.print((true, true));
     (Ok(matr_c), multiplications)
 
