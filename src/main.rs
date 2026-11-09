@@ -32,6 +32,7 @@ fn main() {
         random_matrix::<f64>((5000,5000)),
         random_matrix::<f64>((5000,5000))
     );
+    
     println!("A(size: {}, dim: {})", b.size_str(), b.dim_str());
     println!("x");
     println!("B(size: {}, dim: {})", c.size_str(), c.dim_str());
