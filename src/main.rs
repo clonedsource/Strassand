@@ -27,7 +27,7 @@ fn REF64(matrix: &mut Matrix<f64>) {
 
 fn main() {
     //env::args().for_each(|arg| println!("{}", arg));
-    terminal::begin();
+    //terminal::begin();
     let (mut b, mut c) = (
         random_matrix::<f64>((5000,5000)),
         random_matrix::<f64>((5000,5000))
