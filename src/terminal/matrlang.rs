@@ -362,8 +362,8 @@ pub fn run(path: PathBuf) {
             }
             return Ok(args);
         }));
-        // Need to make export work.
-        vec!["define","set_flag","goto","goto_ifgt","goto_iflt","goto_ifeq","op","call","export"];
+        // Need to make export & import work.
+        vec!["define","set_flag","goto","goto_ifgt","goto_iflt","goto_ifeq","op","call","export","import"];
         let mut line = 0 as usize;
         
         for (opcode, unprocessed_data) in instruction_map.into_iter() {
@@ -919,7 +919,7 @@ pub fn run(path: PathBuf) {
                     return Err("Cannot parse variable 1 in op!".to_string());
                 };
                 let num_parse_2 = fields[2].parse::<f64>();
-                let var2: Box<&dyn Any> = if var_map.contains_key(&fields[1]) {
+                let var2: Box<&dyn Any> = if var_map.contains_key(&fields[2]) {
                     let var2 = var_map.get(&fields[1]).unwrap().as_ref();
                     Box::new(var2)
                 } else if let Ok(num) = &num_parse_2 {
@@ -931,6 +931,8 @@ pub fn run(path: PathBuf) {
                 let res: Box<dyn Any> = if field1_type == "number" {
                     Box::new(var1.downcast_ref::<f64>().unwrap() * (var2.downcast_ref::<f64>().unwrap()))
                 } else if field1_type == "matrix" && field2_type == "number" {
+                    if var2.downcast_ref::<f64>().is_none() {
+                    }
                     Box::new(var1.downcast_ref::<Matrix<f64>>().unwrap() * (var2.downcast_ref::<f64>().unwrap().clone()))
                 } else if field1_type == "number" && field2_type == "matrix" {
                     Box::new(var2.downcast_ref::<Matrix<f64>>().unwrap() * (var1.downcast_ref::<f64>().unwrap().clone()))
@@ -1026,9 +1028,40 @@ pub fn run(path: PathBuf) {
                     return Err("Could not perform operation!".to_string());
                 };
                 Ok(vec![res])
+            } else if call_name == "naive_multiplication" {
+                if fields.len() != 5 {return Err("args of call 'naive_multiplication' need to be of length 4 (matr a, matr b, output matr, multi count)!".to_string())};
+                let field1_type = get_type(&var_map, fields[1].clone());
+                let field2_type = get_type(&var_map, fields[2].clone());
+                if field1_type != "matrix" || field1_type != field2_type {
+                    return Err("matrices of naive multiplication must be matrices!".to_string());
+                }
+                let var1: &Matrix<f64> = var_map.get(&fields[1]).unwrap().downcast_ref::<Matrix<f64>>().unwrap();
+                let var2: &Matrix<f64> = var_map.get(&fields[2]).unwrap().downcast_ref::<Matrix<f64>>().unwrap();
+
+                let res: (Result<Matrix<f64>, &str>, usize) = naive_method(var1, var2);
+                if res.0.is_err() {
+                    return Err(res.0.unwrap_err().to_string());
+                }
+                Ok(vec![Box::new(res.0.unwrap()),Box::new(res.1 as f64)])
+            } else if call_name == "strassen_multiplication" {
+                if fields.len() != 5 {return Err("args of call 'strassen_multiplication' need to be of length 4 (matr a, matr b, output matr, multi count)!".to_string())};
+                let field1_type = get_type(&var_map, fields[1].clone());
+                let field2_type = get_type(&var_map, fields[2].clone());
+                if field1_type != "matrix" || field1_type != field2_type {
+                    return Err("matrices of strassen multiplication must be matrices!".to_string());
+                }
+                let var1: &Matrix<f64> = var_map.get(&fields[1]).unwrap().downcast_ref::<Matrix<f64>>().unwrap();
+                let var2: &Matrix<f64> = var_map.get(&fields[2]).unwrap().downcast_ref::<Matrix<f64>>().unwrap();
+
+                let res: (Result<Matrix<f64>, &str>, usize) = strassen_method(var1, var2);
+                if res.0.is_err() {
+                    return Err(res.0.unwrap_err().to_string());
+                }
+                Ok(vec![Box::new(res.0.unwrap()),Box::new(res.1 as f64)])
             } else {
-                Err(format!("Unknown call of '{}'!", call_name))
+                Err(format!("Unknown operation call of '{}'!", call_name))
             };
+
             if output_values.is_err() {
                 return Err(output_values.unwrap_err());
             }
