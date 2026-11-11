@@ -36,7 +36,7 @@ pub fn create_folders() {
         if BobTheBuilder.create(path_buf.clone().join("Exports")).is_err() {return;}
     }
 }
-pub fn run2(path: PathBuf) {
+pub fn run(path: PathBuf) {
     /*
         commands:
         define VARIABLE_NAME/#VARIABLE VARIABLE/NUMBER/"VALUE"/(DIM0,DIM1) *[VALUES];
@@ -171,7 +171,7 @@ pub fn run2(path: PathBuf) {
             let startpos = input.find('[').unwrap();
             let endpos = input.rfind(']').unwrap();
             if endpos < startpos {return Err("Brackets in wrong order!".to_string());}
-            return Ok((&input)[startpos..endpos].to_string());
+            return Ok((&input)[startpos+1..endpos].to_string());
         };
 
         let collect_args = |input: String| -> Result<Vec<String>, String> {
@@ -222,7 +222,7 @@ pub fn run2(path: PathBuf) {
             if list.len() < 1 {return Err("missing variable name for set_flag!".to_string())};
 
             // Uses the line index.
-            return Ok(vec![line_num.to_string()]);
+            return Ok(vec![list[0].clone(), (line_num + 1).to_string()]);
         }));
         valid_opcodes.insert("goto".to_string(), Box::new(|line_num: usize, unprocessed_data: String| -> Result<Vec<String>, String> {
             // Split spaces.
@@ -246,8 +246,8 @@ pub fn run2(path: PathBuf) {
             // Checks for conditions.
             let conds = split_commas(trim_paren_result.unwrap());
             if conds.len() != 2 {return Err("Conditional in goto_ifgt has to have 2 variables/numbers!".to_string());}
-            args.push(conds[0].clone());
-            args.push(conds[1].clone());
+            args.push(conds[0].trim().to_string());
+            args.push(conds[1].trim().to_string());
             args.push(list[1].clone());
 
             return Ok(args);
@@ -266,8 +266,8 @@ pub fn run2(path: PathBuf) {
             // Checks for conditions.
             let conds = split_commas(trim_paren_result.unwrap());
             if conds.len() != 2 {return Err("Conditional in goto_iflt has to have 2 variables/numbers!".to_string());}
-            args.push(conds[0].clone());
-            args.push(conds[1].clone());
+            args.push(conds[0].trim().to_string());
+            args.push(conds[1].trim().to_string());
             args.push(list[1].clone());
 
             return Ok(args);
@@ -286,8 +286,8 @@ pub fn run2(path: PathBuf) {
             // Checks for conditions.
             let conds = split_commas(trim_paren_result.unwrap());
             if conds.len() != 2 {return Err("Conditional in goto_ifeq has to have 2 variables/numbers!".to_string());}
-            args.push(conds[0].clone());
-            args.push(conds[1].clone());
+            args.push(conds[0].trim().to_string());
+            args.push(conds[1].trim().to_string());
             args.push(list[1].clone());
             
 
@@ -309,6 +309,9 @@ pub fn run2(path: PathBuf) {
 
             // Checks for parameters.
             let mut params = split_commas(trim_paren_result.unwrap());
+            for param in params.iter_mut() {
+                *param = param.trim().to_string();
+            }
             if params.len() < 1 {return Err("operations require atleast one parameter!".to_string());}
             args.append(&mut params);
 
@@ -334,13 +337,16 @@ pub fn run2(path: PathBuf) {
 
                 // Checks for parameters.
                 let mut params = split_commas(trim_paren_result.unwrap());
+                for param in params.iter_mut() {
+                    *param = param.trim().to_string();
+                }
                 if params.len() < 1 {return Err("operations require atleast one parameter!".to_string());}
                 args.append(&mut params);
             }
 
-            if list[2].len() > 3 {return Err("call has too many arguments!".to_string())};
+            if list.len() > 3 {return Err("call has too many arguments!".to_string())};
             // Not all calls return values.
-            if list[2].len() == 2 {return Ok(args)};
+            if list.len() == 2 {return Ok(args)};
 
             // Outputs.
             let trim_paren_result = trim_parenthetical(list[2].clone());
@@ -348,6 +354,9 @@ pub fn run2(path: PathBuf) {
             if trim_paren_result.is_ok() {
                 // Checks for parameters.
                 let mut params = split_commas(trim_paren_result.unwrap());
+                for param in params.iter_mut() {
+                    *param = param.trim().to_string();
+                }
                 if params.len() < 1 {return Err("parentheses provided, but no arguments passed!".to_string());}
                 args.append(&mut params);
             }
@@ -387,6 +396,22 @@ pub fn run2(path: PathBuf) {
     // Where variables are stored.
     let mut var_map: HashMap<String, Box<dyn Any>> = HashMap::new();
     
+    // Useful helpers.
+    let trim_brackets = |input: String| -> Result<String, String> {
+        if !input.contains('[') | !input.contains(']') {return Err("Missing brackets!".to_string());}
+        let startpos = input.find('[').unwrap();
+        let endpos = input.rfind(']').unwrap();
+        if endpos < startpos {return Err("Brackets in wrong order!".to_string());}
+        return Ok((&input)[startpos+1..endpos].to_string());
+    };
+    let split_commas = |input: String| -> Vec<String> {
+        let raw_output: Vec<&str> = input.split(',').collect();
+        let mut output: Vec<String> = Vec::new();
+        for raw_output_val in raw_output.into_iter() {
+            output.push(raw_output_val.trim().to_string());
+        }
+        return output;
+    };
     let mut curline: usize = 0;
     // Defined macros!
     let get_type = |var_map: &HashMap<String, Box<dyn Any + 'static>>, value: String| -> String {
@@ -397,11 +422,21 @@ pub fn run2(path: PathBuf) {
         } else if value.starts_with("#") {
             return "pointer".to_string();
         } else if var_map.contains_key(&value) {
+            if let Some(res_value) = var_map.get(&value) {
+                if let Some(matrix) = res_value.downcast_ref::<Matrix<f64>>() {
+                    return "matrix".to_string();
+                } else if let Some(number) = res_value.downcast_ref::<f64>() {
+                    return "number".to_string();
+                } else if let Some(string) = res_value.downcast_ref::<String>() {
+                    return "string".to_string();
+                }
+            }
             return "variable".to_string();
+        } else if value.starts_with("[") {
+            return "matrix".to_string();
         } else {
             return "variable".to_string();
         }
-        // Add Support for Matrix Type.
     };
     let get_types = |var_map: &HashMap<String, Box<dyn Any + 'static>>, values: Vec<String>| -> Vec<String> {
         let mut types_array: Vec<String> = Vec::new();
@@ -435,8 +470,36 @@ pub fn run2(path: PathBuf) {
                 definition_name = downcast.unwrap().to_string();
             } else if definition_type == "variable" {
                 definition_name = fields[0].clone();
+            } else if var_map.contains_key(&fields[0].clone()) { // variable.
+                definition_name = fields[0].clone();
             } else {
                 return Err("Unsupported primitive type used for defining variable!".to_string());
+            }
+            // matrix name, dim0, dim1, vector (unparsed)
+            if fields.len() == 4 {
+                let (dim0_parse, dim1_parse) = (fields[1].parse::<usize>(), fields[2].parse::<usize>());
+                // Handles parsing errors.
+                if let Err(error) = dim0_parse {return Err(error.to_string())}
+                else if let Err(error) = dim1_parse {return Err(error.to_string())}
+                // Defines the dimension.
+                let dim = (dim0_parse.unwrap(), dim1_parse.unwrap());
+                // Parses vector.
+                let mut data: Vec<f64> = Vec::new();
+                let data_string_trimmed = trim_brackets(fields[3].clone());
+                if let Err(error) = data_string_trimmed {
+                    return Err(error);
+                }
+                let data_vec = split_commas(data_string_trimmed.unwrap());
+                for vec_val in data_vec.into_iter() {
+                    let parsed_val = vec_val.parse::<f64>();
+                    if let Err(error) = parsed_val {return Err(error.to_string());}
+                    else if let Ok(value) = parsed_val {data.push(value);}
+                }
+
+                // Matrix creation.
+                let matrix: Matrix<f64> = Matrix::new(dim, Some(data));
+                var_map.insert(definition_name, Box::new(matrix));
+                return Ok(String::new());                
             }
             let value_type: String = get_type(var_map, fields[1].clone());
             // Definition Value
@@ -458,16 +521,570 @@ pub fn run2(path: PathBuf) {
             } else {
                 return Err("Unsupported primitive type used for defining variable!".to_string());
             }
+            Ok("".to_string())
+        }));
+        valid_instructions.insert("set_flag".to_string(), Box::new(|var_map: &mut HashMap<String, Box<dyn Any + 'static>>, fields: Vec<String>| -> Result<String, String> {
+            
+            let definition_type: String = get_type(var_map, fields[0].clone());
+            #[allow(unused_assignments)]
+            let mut definition_name: String = String::new();
+            let mut definition_value: String = String::new();
+            // Pointers with boxed = holy larp
+            // Definition Variable
+            if definition_type == "pointer" {
+                let pointer_value = (&(fields[0].clone())[1..]).to_string();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to use define with a name pointer to a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let downcast = (*pointer_value_result).downcast_ref::<String>();
+                if downcast.is_none() {
+                    return Err("attempt to use define with a name pointer to a variable of wrong primitive type!".to_string());
+                }
+                definition_name = downcast.unwrap().to_string();
+            } else if definition_type == "variable" {
+                definition_name = fields[0].clone();
+            } else {
+                return Err("Unsupported primitive type used for defining variable!".to_string());
+            }
+            
+            if let Ok(value) = fields[1].parse::<usize>() {
+                var_map.insert(definition_name.clone(), Box::new(value));
+
+            } else {
+                return Err("Attempted to set flag with non usize number!".to_string());
+            }
             // Add Support for Matrix Type.
             Ok("".to_string())
         }));
+        valid_instructions.insert("goto".to_string(), Box::new(|var_map: &mut HashMap<String, Box<dyn Any + 'static>>, fields: Vec<String>| -> Result<String, String> {
+            // BUG, GOES TO LINE BEFORE THIS ONE. WHAT THE FUCK?
+            if get_type(var_map, fields[0].clone()) == "variable" {
+                let pointer_value = fields[0].clone();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to use goto with a value pointer to a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let value = (*pointer_value_result).downcast_ref::<usize>();
+                if let Some(nvalue) = value {
+                    return Ok(nvalue.to_string());
+                }
+            } else if let Ok(value) = fields[0].parse::<usize>() {
+                return Ok(value.to_string());
+            }
+            return Err("Undeclared flag used in goto!".to_string());
+        }));
+        valid_instructions.insert("goto_ifgt".to_string(), Box::new(|var_map: &mut HashMap<String, Box<dyn Any + 'static>>, fields: Vec<String>| -> Result<String, String> {
+            #[allow(unused)]
+            let mut cond1: f64 = 0_f64;
+            #[allow(unused)]
+            let mut cond2: f64 = 0_f64;
+            let cond1_type: String = get_type(var_map, fields[0].clone());
+            // Cond1
+            if var_map.contains_key(&fields[0]) {
+                let pointer_value = fields[0].clone();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to define condition 1 with a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let downcast_result = (*pointer_value_result).downcast_ref::<f64>();
+                if let Some(downcast) = downcast_result {
+                    cond1 = downcast.clone();
+                } else {
+                    return Err("Non numerical variable used for condition 1 in goto!".to_string());
+                }
+            } else if cond1_type == "number" {
+                let value_parsed = fields[0].parse::<f64>();
+                if value_parsed.is_err() {
+                    return Err(value_parsed.clone().unwrap_err().to_string());
+                }
+                cond1 = value_parsed.unwrap();
+            } else {
+                return Err("Unsupported primitive type used for condition in goto!".to_string());
+            }
+            let cond2_type: String = get_type(var_map, fields[1].clone());
+            // Cond2
+            if var_map.contains_key(&fields[1]) {
+                let pointer_value = fields[1].clone();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to define condition 2 with a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let downcast_result = (*pointer_value_result).downcast_ref::<f64>();
+                if let Some(downcast) = downcast_result {
+                    cond2 = downcast.clone();
+                } else {
+                    return Err("Non numerical variable used for condition 2 in goto!".to_string());
+                }
+            } else if cond2_type == "number" {
+                let value_parsed = fields[1].parse::<f64>();
+                if value_parsed.is_err() {
+                    return Err(value_parsed.clone().unwrap_err().to_string());
+                }
+                cond2 = value_parsed.unwrap();
+            } else {
+                return Err("Unsupported primitive type used for condition in goto!".to_string());
+            }
+            if get_type(var_map, fields[2].clone()) == "variable" {
+                let pointer_value = fields[2].clone();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to use goto with a value pointer to a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let value = (*pointer_value_result).downcast_ref::<usize>().unwrap().to_string();
+                if let Ok(nvalue) = value.parse::<usize>() {
+                    if cond1 <= cond2 {
+                        return Ok("S".to_string());
+                    }
+                    return Ok(nvalue.to_string());
+                }
+            } else if let Ok(value) = fields[2].parse::<usize>() {
+                if cond1 <= cond2 {
+                    return Ok("S".to_string());
+                }
+                return Ok(value.to_string());
+            }
+            return Err("Undeclared flag used in goto!".to_string());
+        }));
+        valid_instructions.insert("goto_ifeq".to_string(), Box::new(|var_map: &mut HashMap<String, Box<dyn Any + 'static>>, fields: Vec<String>| -> Result<String, String> {
+            #[allow(unused)]
+            let mut cond1: f64 = 0_f64;
+            #[allow(unused)]
+            let mut cond2: f64 = 0_f64;
+            let cond1_type: String = get_type(var_map, fields[0].clone());
+            // Cond1
+            if var_map.contains_key(&fields[0]) {
+                let pointer_value = fields[0].clone();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to define condition 1 with a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let downcast_result = (*pointer_value_result).downcast_ref::<f64>();
+                if let Some(downcast) = downcast_result {
+                    cond1 = downcast.clone();
+                } else {
+                    return Err("Non numerical variable used for condition 1 in goto!".to_string());
+                }
+            } else if cond1_type == "number" {
+                let value_parsed = fields[0].parse::<f64>();
+                if value_parsed.is_err() {
+                    return Err(value_parsed.clone().unwrap_err().to_string());
+                }
+                cond1 = value_parsed.unwrap();
+            } else {
+                return Err("Unsupported primitive type used for condition in goto!".to_string());
+            }
+            let cond2_type: String = get_type(var_map, fields[1].clone());
+            // Cond2
+            if var_map.contains_key(&fields[1]) {
+                let pointer_value = fields[1].clone();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to define condition 2 with a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let downcast_result = (*pointer_value_result).downcast_ref::<f64>();
+                if let Some(downcast) = downcast_result {
+                    cond2 = downcast.clone();
+                } else {
+                    return Err("Non numerical variable used for condition 2 in goto!".to_string());
+                }
+            } else if cond2_type == "number" {
+                let value_parsed = fields[1].parse::<f64>();
+                if value_parsed.is_err() {
+                    return Err(value_parsed.clone().unwrap_err().to_string());
+                }
+                cond2 = value_parsed.unwrap();
+            } else {
+                return Err("Unsupported primitive type used for condition in goto!".to_string());
+            }
+            if get_type(var_map, fields[2].clone()) == "variable" {
+                let pointer_value = fields[2].clone();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to use goto with a value pointer to a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let value = (*pointer_value_result).downcast_ref::<usize>().unwrap().to_string();
+                if let Ok(nvalue) = value.parse::<usize>() {
+                    if cond1 != cond2 {
+                        return Ok("S".to_string());
+                    }
+                    return Ok(nvalue.to_string());
+                }
+            } else if let Ok(value) = fields[2].parse::<usize>() {
+                if cond1 != cond2 {
+                    return Ok("S".to_string());
+                }
+                return Ok(value.to_string());
+            }
+            return Err("Undeclared flag used in goto!".to_string());
+        }));
+        valid_instructions.insert("goto_iflt".to_string(), Box::new(|var_map: &mut HashMap<String, Box<dyn Any + 'static>>, fields: Vec<String>| -> Result<String, String> {
+            #[allow(unused)]
+            let mut cond1: f64 = 0_f64;
+            #[allow(unused)]
+            let mut cond2: f64 = 0_f64;
+            let cond1_type: String = get_type(var_map, fields[0].clone());
+            // Cond1
+            if var_map.contains_key(&fields[0]) {
+                let pointer_value = fields[0].clone();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to define condition 1 with a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let downcast_result = (*pointer_value_result).downcast_ref::<f64>();
+                if let Some(downcast) = downcast_result {
+                    cond1 = downcast.clone();
+                } else {
+                    return Err("Non numerical variable used for condition 1 in goto!".to_string());
+                }
+            } else if cond1_type == "number" {
+                let value_parsed = fields[0].parse::<f64>();
+                if value_parsed.is_err() {
+                    return Err(value_parsed.clone().unwrap_err().to_string());
+                }
+                cond1 = value_parsed.unwrap();
+            } else {
+                return Err("Unsupported primitive type used for condition in goto!".to_string());
+            }
+            let cond2_type: String = get_type(var_map, fields[1].clone());
+            // Cond2
+            if var_map.contains_key(&fields[1]) {
+                let pointer_value = fields[1].clone();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to define condition 2 with a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let downcast_result = (*pointer_value_result).downcast_ref::<f64>();
+                if let Some(downcast) = downcast_result {
+                    cond2 = downcast.clone();
+                } else {
+                    return Err("Non numerical variable used for condition 2 in goto!".to_string());
+                }
+            } else if cond2_type == "number" {
+                let value_parsed = fields[1].parse::<f64>();
+                if value_parsed.is_err() {
+                    return Err(value_parsed.clone().unwrap_err().to_string());
+                }
+                cond2 = value_parsed.unwrap();
+            } else {
+                return Err("Unsupported primitive type used for condition in goto!".to_string());
+            }
+            if get_type(var_map, fields[2].clone()) == "variable" {
+                let pointer_value = fields[2].clone();
+                // Make sure pointer to value exists.
+                if !var_map.contains_key(&pointer_value) {
+                    return Err("attempt to use goto with a value pointer to a non existent variable!".to_string());
+                }
+                let pointer_value_result = var_map.get(&pointer_value).unwrap();
+                // I hate boxed.
+                let value = (*pointer_value_result).downcast_ref::<usize>().unwrap().to_string();
+                if let Ok(nvalue) = value.parse::<usize>() {
+                    if cond1 >= cond2 {
+                        return Ok("S".to_string());
+                    }
+                    return Ok(nvalue.to_string());
+                }
+            } else if let Ok(value) = fields[2].parse::<usize>() {
+                if cond1 >= cond2 {
+                    return Ok("S".to_string());
+                }
+                return Ok(value.to_string());
+            }
+            return Err("Undeclared flag used in goto!".to_string());
+        }));
+        valid_instructions.insert("op".to_string(), Box::new(|var_map: &mut HashMap<String, Box<dyn Any + 'static>>, fields: Vec<String>| -> Result<String, String> {
+            let operation_name: String = fields[0].clone();
+            // Handle Operation name here.
+            if !vec!["add","subtract","multiply","divide"].contains(&&operation_name.as_str()) {
+                return Err(format!("Unknown operation call of '{}'!", operation_name));
+            }
+            let output_dest_raw: String = fields[fields.len() - 1].clone();
+            if let Ok(bad_choice) = output_dest_raw.parse::<f64>() {
+                return Err("Cannot use number as destination in operation!".to_string());
+            }
 
+            let output_value: Result<Box<dyn Any>, String> = if operation_name == "add" {
+                if fields.len() != 4 {return Err("args of op 'add' need to be of length 2!".to_string())};
+                let field1_type = get_type(&var_map, fields[1].clone());
+                let field2_type = get_type(&var_map, fields[2].clone());
+                // Make sure types are the same
+                if field1_type != field2_type {
+                    return Err("Cannot add values of different type together!".to_string())
+                };
+                let num_parse_1 = fields[1].parse::<f64>();
+                let string_parse_1 = fields[1].parse::<String>();
+                let var1: Box<&dyn Any> = if var_map.contains_key(&fields[1]) {
+                    let var1 = var_map.get(&fields[1]).unwrap().as_ref();
+                    Box::new(var1)
+                } else if let Ok(num) = &num_parse_1 {
+                    Box::new(num)
+                } else if let Ok(str) = &string_parse_1 {
+                    Box::new(str)
+                } else {
+                    return Err("Cannot parse variable 1 in op!".to_string());
+                };
+                let num_parse_2 = fields[2].parse::<f64>();
+                let string_parse_2 = fields[2].parse::<String>();
+                let var2: Box<&dyn Any> = if var_map.contains_key(&fields[1]) {
+                    let var2 = var_map.get(&fields[1]).unwrap().as_ref();
+                    Box::new(var2)
+                } else if let Ok(num) = &num_parse_2 {
+                    Box::new(num)
+                } else if let Ok(str) = &string_parse_2 {
+                    Box::new(str)
+                } else {
+                    return Err("Cannot parse variable 2 in op!".to_string());
+                };
+                
+                let res: Box<dyn Any> = if field1_type == "string" {
+                    Box::new(var1.downcast_ref::<String>().unwrap().clone().push_str(var2.downcast_ref::<String>().unwrap()))
+                } else if field1_type == "number" {
+                    Box::new(var1.downcast_ref::<f64>().unwrap() + (var2.downcast_ref::<f64>().unwrap()))
+                } else if field1_type == "matrix" {
+                    Box::new(var1.downcast_ref::<Matrix<f64>>().unwrap() + (var2.downcast_ref::<Matrix<f64>>().unwrap()))
+                } else {
+                    return Err("Could not perform operation!".to_string());
+                };
+                Ok(res)
+            } else if operation_name == "subtract" {
+                if fields.len() != 4 {return Err("args of op 'subtract' need to be of length 2!".to_string())};
+                let field1_type = get_type(&var_map, fields[1].clone());
+                let field2_type = get_type(&var_map, fields[2].clone());
+                // Make sure types are the same
+                if field1_type != field2_type {
+                    return Err("Cannot add values of different type together!".to_string())
+                };
+                let num_parse_1 = fields[1].parse::<f64>();
+                let var1: Box<&dyn Any> = if var_map.contains_key(&fields[1]) {
+                    let var1 = var_map.get(&fields[1]).unwrap().as_ref();
+                    Box::new(var1)
+                } else if let Ok(num) = &num_parse_1 {
+                    Box::new(num)
+                } else {
+                    return Err("Cannot parse variable 1 in op!".to_string());
+                };
+                let num_parse_2 = fields[2].parse::<f64>();
+                let var2: Box<&dyn Any> = if var_map.contains_key(&fields[1]) {
+                    let var2 = var_map.get(&fields[1]).unwrap().as_ref();
+                    Box::new(var2)
+                } else if let Ok(num) = &num_parse_2 {
+                    Box::new(num)
+                } else {
+                    return Err("Cannot parse variable 2 in op!".to_string());
+                };
+                
+                let res: Box<dyn Any> = if field1_type == "number" {
+                    Box::new(var1.downcast_ref::<f64>().unwrap() - (var2.downcast_ref::<f64>().unwrap()))
+                } else if field1_type == "matrix" {
+                    Box::new(var1.downcast_ref::<Matrix<f64>>().unwrap() - (var2.downcast_ref::<Matrix<f64>>().unwrap()))
+                } else {
+                    return Err("Could not perform operation!".to_string());
+                };
+                Ok(res)
+            } else if operation_name == "multiply" {
+                if fields.len() != 4 {return Err("args of op 'multiply' need to be of length 2!".to_string())};
+                let field1_type = get_type(&var_map, fields[1].clone());
+                let field2_type = get_type(&var_map, fields[2].clone());
+                // Make sure types are the same
+                if field1_type == "string" || field2_type == "string" {
+                    return Err("Cannot multiply anything by a string!".to_string())
+                };
+                let num_parse_1 = fields[1].parse::<f64>();
+                let var1: Box<&dyn Any> = if var_map.contains_key(&fields[1]) {
+                    let var1 = var_map.get(&fields[1]).unwrap().as_ref();
+                    Box::new(var1)
+                } else if let Ok(num) = &num_parse_1 {
+                    Box::new(num)
+                } else {
+                    return Err("Cannot parse variable 1 in op!".to_string());
+                };
+                let num_parse_2 = fields[2].parse::<f64>();
+                let var2: Box<&dyn Any> = if var_map.contains_key(&fields[1]) {
+                    let var2 = var_map.get(&fields[1]).unwrap().as_ref();
+                    Box::new(var2)
+                } else if let Ok(num) = &num_parse_2 {
+                    Box::new(num)
+                } else {
+                    return Err("Cannot parse variable 2 in op!".to_string());
+                };
+                
+                let res: Box<dyn Any> = if field1_type == "number" {
+                    Box::new(var1.downcast_ref::<f64>().unwrap() * (var2.downcast_ref::<f64>().unwrap()))
+                } else if field1_type == "matrix" && field2_type == "number" {
+                    Box::new(var1.downcast_ref::<Matrix<f64>>().unwrap() * (var2.downcast_ref::<f64>().unwrap().clone()))
+                } else if field1_type == "number" && field2_type == "matrix" {
+                    Box::new(var2.downcast_ref::<Matrix<f64>>().unwrap() * (var1.downcast_ref::<f64>().unwrap().clone()))
+                } else {
+                    return Err("Could not perform operation!".to_string());
+                };
+                Ok(res)
+            } else if operation_name == "multiply" {
+                if fields.len() != 4 {return Err("args of op 'divide' need to be of length 2!".to_string())};
+                let field1_type = get_type(&var_map, fields[1].clone());
+                let field2_type = get_type(&var_map, fields[2].clone());
+                // Make sure types are the same
+                if field1_type == "string" || field2_type == "string" {
+                    return Err("Cannot divide anything by a string!".to_string())
+                };
+                let num_parse_1 = fields[1].parse::<f64>();
+                let var1: Box<&dyn Any> = if var_map.contains_key(&fields[1]) {
+                    let var1 = var_map.get(&fields[1]).unwrap().as_ref();
+                    Box::new(var1)
+                } else if let Ok(num) = &num_parse_1 {
+                    Box::new(num)
+                } else {
+                    return Err("Cannot parse variable 1 in op!".to_string());
+                };
+                let num_parse_2 = fields[2].parse::<f64>();
+                let var2: Box<&dyn Any> = if var_map.contains_key(&fields[1]) {
+                    let var2 = var_map.get(&fields[1]).unwrap().as_ref();
+                    Box::new(var2)
+                } else if let Ok(num) = &num_parse_2 {
+                    Box::new(num)
+                } else {
+                    return Err("Cannot parse variable 2 in op!".to_string());
+                };
+                
+                let res: Box<dyn Any> = if field1_type == "number" {
+                    Box::new(var1.downcast_ref::<f64>().unwrap() / (var2.downcast_ref::<f64>().unwrap()))
+                } else if field1_type == "matrix" && field2_type == "number" {
+                    Box::new(var1.downcast_ref::<Matrix<f64>>().unwrap() * (1.0_f64 / (var2.downcast_ref::<f64>().unwrap().clone())))
+                } else if field1_type == "number" && field2_type == "matrix" {
+                    Box::new(var2.downcast_ref::<Matrix<f64>>().unwrap() * (1.0_f64 / (var1.downcast_ref::<f64>().unwrap().clone())))
+                } else {
+                    return Err("Could not perform operation!".to_string());
+                };
+                Ok(res)
+            } else {
+                Err(format!("Unknown operation call of '{}'!", operation_name))
+            };
+            if output_value.is_err() {
+                return Err(output_value.unwrap_err());
+            }
+            // Inserts value into map.
+            var_map.insert(output_dest_raw, output_value.unwrap());
+
+            return Ok(String::new());
+        }));
+        valid_instructions.insert("call".to_string(), Box::new(|var_map: &mut HashMap<String, Box<dyn Any + 'static>>, fields: Vec<String>| -> Result<String, String> {
+            let call_name: String = fields[0].clone();
+            // Handle Call name here.
+            if !vec!["print","naive_multiplication","strassen_multiplication"].contains(&&call_name.as_str()) {
+                return Err(format!("Unknown operation call of '{}'!", call_name));
+            }
+
+            let output_values: Result<Vec<Box<dyn Any>>, String> = if call_name == "print" {
+                if fields.len() != 2 {return Err("args of call 'print' need to be of length 1!".to_string())};
+                let field1_type = get_type(&var_map, fields[1].clone());
+
+                let num_parse_1 = fields[1].parse::<f64>();
+                let string_parse_1 = fields[1].parse::<String>();
+                let var1: Box<&dyn Any> = if var_map.contains_key(&fields[1]) {
+                    let var1 = var_map.get(&fields[1]).unwrap().as_ref();
+                    Box::new(var1)
+                } else if let Ok(num) = &num_parse_1 {
+                    Box::new(num)
+                } else if let Ok(str) = &string_parse_1 {
+                    Box::new(str)
+                } else {
+                    return Err("Cannot parse variable 1 in call!".to_string());
+                };
+                
+                let res: Box<dyn Any> = if field1_type == "string" {
+                    let string = var1.downcast_ref::<String>().unwrap().clone();
+                    println!("{string}");
+                    Box::new(string)
+                } else if field1_type == "number" {
+                    let string = var1.downcast_ref::<f64>().unwrap().clone().to_string();
+                    println!("{string}");
+                    Box::new(string)
+                } else if field1_type == "matrix" {
+                    let string = var1.downcast_ref::<Matrix<f64>>().unwrap().matrix_str();
+                    println!("{string}");
+                    Box::new(string)
+                } else {
+                    return Err("Could not perform operation!".to_string());
+                };
+                Ok(vec![res])
+            } else {
+                Err(format!("Unknown call of '{}'!", call_name))
+            };
+            if output_values.is_err() {
+                return Err(output_values.unwrap_err());
+            }
+
+            // calls typically log values.
+            let mut OkString: String = String::new();
+
+            // Sine this is a call we need to iterate through.
+            for (index, output_value) in output_values.unwrap().into_iter().enumerate() {
+                // Rework this to support multiple returns.
+                let output_dest_raw: String = fields[fields.len() - 1 - index].clone();
+                if let Ok(bad_choice) = output_dest_raw.parse::<f64>() {
+                    return Err("Cannot use number as destination in call!".to_string());
+                }
+                // Do borrowing, create OkString.
+                if let Some(borrow) = output_value.downcast_ref::<String>() {
+                    OkString.push_str("\"");
+                    OkString.push_str(borrow);
+                    OkString.push_str("\"");
+                } else if let Some(borrow) = output_value.downcast_ref::<f64>() {
+                    OkString.push_str(borrow.clone().to_string().as_str());
+                } else if let Some(borrow) = output_value.downcast_ref::<usize>() {
+                    OkString.push_str(borrow.clone().to_string().as_str());
+                } 
+                // Inserts value into map.
+                var_map.insert(output_dest_raw, output_value);
+            }
+
+            return Ok(OkString);
+        }));
+    // Set flags.
+    for (current_opcode, current_instruction) in instruction_list.iter() {
+        if current_opcode != "set_flag" {continue;}
+        // Fetch Instruction.
+        let instruction_result = valid_instructions.get(current_opcode);
+        
+        // Mandatory for safety.
+        if instruction_result.is_none() {
+            log(Err("Non existent instruction!".to_string()));
+            break;
+        }
+        println!("Flag set!");
+        // Execute Instruction.
+        let executed_result = instruction_result.unwrap()(&mut var_map, current_instruction.clone());
+
+        // Log output.
+        log(executed_result);
+    }
 
     loop {
         if curline > instruction_list.len() - 1 {break};
         let (current_opcode, current_instruction) = instruction_list.get(curline).unwrap();
         println!("current opcode: {} -> {:?}", current_opcode, current_instruction);
         curline += 1;
+        // We did a previous loop doing this lol.
+        if current_opcode == "set_flag" {continue;}
         // Fetch Instruction.
         let instruction_result = valid_instructions.get(current_opcode);
         
@@ -479,566 +1096,19 @@ pub fn run2(path: PathBuf) {
 
         // Execute Instruction.
         let executed_result = instruction_result.unwrap()(&mut var_map, current_instruction.clone());
-
         // Log output.
-        log(executed_result);
+        log(executed_result.clone());
+        // Only for goto, goto_ifgt, goto_iflt, goto_ifeq instructions.
+        if current_opcode.contains("goto") & executed_result.is_ok() {
+            let result = executed_result.unwrap();
+            if result == "S" {continue;}
+
+            // BUG IN GOTO THAT CAUSES THIS TO GO TO LINE BEFORE FLAG.
+            curline = result.parse::<usize>().unwrap() - 1;
+        }
     }
 }
-pub fn run(path: PathBuf) {
-    // Decompose the file with reading.
-    /*
-        commands:
-        define VARIABLE_NAME = VALUE;
-        dim MATRIX_NAME(DIM0,DIM1) = [...];
-        op OPERATION_NAME(...ARGS) MATRIX/VARIABLE_NAME;
-        call FUNCTION_NAME(...ARGS) (...MATRIX/VARIABLE_NAME(S));
-        loop (START..END,STEP) ...commands_here endloop;
-        export set/add VARIABLE_OR_MATRIX_NAME;
-        import FILE_PATH;
-     */
-    let mut prgm_file = File::open(path).unwrap();
-    let mut buf_reader = BufReader::new(prgm_file);
 
-    let mut cur_buf = vec![];
-    let mut num_bytes = 50;
+pub fn view_log(path: PathBuf)  {
 
-    let mut variables_hash_map: HashMap<String, f64> = HashMap::new();
-    let mut matrices_hash_map: HashMap<String, Matrix<f64>> = HashMap::new();
-    loop {
-        // Important to ensure EOF
-        let num_bytes = buf_reader.read_until(b';', &mut cur_buf).unwrap();
-        if num_bytes == 0 {break;}
-        
-        // What we translate
-        let mut codeline = String::from_utf8_lossy(&cur_buf).trim().to_string();
-        codeline.pop();
-
-        // Split by Spaces.
-        let mut codevec: Vec<&str> = codeline.split(' ').collect();
-        let opcode = codevec.remove(0);
-        
-        // Ugly conditional. I don't particularly care though lol.
-        if opcode == "define" {
-            let result: Result<(String, f64), String> = define_op(codevec);
-            if result.is_err() {
-                // TODO! Make this produce a line in the log.
-                println!("{}", result.unwrap_err());
-                break;
-            }
-            let (variable, value) = result.unwrap();
-            variables_hash_map.insert(variable, value);
-        } else if opcode == "dim" {
-            let result: Result<(String, Matrix<f64>), String> = dim_op(codevec);
-            if result.is_err() {
-                // TODO! Make this produce a line in the log.
-                println!("{}", result.unwrap_err());
-                break;
-            }
-            let (variable, value) = result.unwrap();
-            matrices_hash_map.insert(variable, value);
-        } else if opcode == "op" {
-            let result: Result<String, String> = op_op(codevec, &mut matrices_hash_map, &mut variables_hash_map);
-            if result.is_err() {
-                // TODO! Make this produce a line in the log.
-                println!("{}", result.unwrap_err());
-                break;
-            }
-            for (key, value) in matrices_hash_map.iter() {
-                println!("op {}:", key);
-                value.print((false,false));
-            }
-        } else if opcode == "call" {
-            let result: Result<String, String> = call_op(codevec, &mut matrices_hash_map, &mut variables_hash_map);
-            if result.is_err() {
-                // TODO! Make this produce a line in the log.
-                println!("{}", result.unwrap_err());
-                break;
-            }
-        } else if opcode == "loop" {
-            loop_op(codevec);
-        } else if opcode == "export" {
-            export_op(codevec);
-        } else if opcode == "import" { // Arguably the hardest thing to do.
-            import_op(codevec);
-        } else { // If not, produce an error in the log!
-            // TODO! Make this produce a line in the log.
-            break;
-        }
-
-        cur_buf.clear();
-    }
-
-}
-
-pub fn view_log(path: PathBuf) {
-
-}
-
-// Functions For OpCode HashMap.
-fn define_op(codevec: Vec<&str>) -> Result<(String, f64), String> {
-    let parse_result = codevec[1].parse::<f64>();
-    // Handles parsing error.
-    if parse_result.is_err() {return Err(parse_result.unwrap_err().to_string());}
-    Ok((codevec[0].to_string(), parse_result.unwrap()))
-}
-fn dim_op(codevec: Vec<&str>) -> Result<(String, Matrix<f64>), String> {
-    // Error handling galore.
-    if !codevec[0].contains('(') {
-        return Err("Missing '(' in 'dim MATR(x,y)'!".to_string());
-    } else if !codevec[0].contains(',') {
-        return Err("Missing ',' in 'dim MATR(x,y)'!".to_string());
-    } else if !codevec[0].contains(')') {
-        return Err("Missing ')' in 'dim MATR(x,y)'!".to_string());
-    } else if !codevec[1].contains('[') {
-        return Err("Missing '[' in 'dim MATR(x,y) = [x1,x2,...,xn]'!".to_string());
-    } else if !codevec[1].contains(']') {
-        return Err("Missing ']' in 'dim MATR(x,y) = [x1,x2,...,xn]'!".to_string());
-    }
-
-    // Splits string into name and dimensions
-    let mut splitted_dim: Vec<&str> = codevec[0].split('(').collect();
-    if splitted_dim[0].is_empty() {
-        return Err("Missing name in dim declaration!\n Correct form is 'dim MATR(X,Y) = [x1,x2,...,xn]'!".to_string());
-    }
-    let name = splitted_dim[0].to_string();
-
-    // Splits to separate dims
-    splitted_dim = splitted_dim[1].split(')').collect();
-    splitted_dim = splitted_dim[0].split(',').collect();
-    let (dimx_str, dimy_str) = (splitted_dim[0], splitted_dim[1]);
-    
-    // Parses for dim + error handling.
-    let parse_result_x = dimx_str.parse::<usize>();
-    if parse_result_x.is_err() {return Err(parse_result_x.unwrap_err().to_string());}
-    let dimx: usize = parse_result_x.unwrap();
-
-    let parse_result_y = dimy_str.parse::<usize>();
-    if parse_result_y.is_err() {return Err(parse_result_y.unwrap_err().to_string());}
-    let dimy: usize = parse_result_y.unwrap();
- 
-    // Create a vector
-    let mut matr_vec: Vec<f64> = vec![0_f64;dimx*dimy];
-
-    // Parses into a list (Reusing splitted dim lol)
-    splitted_dim = codevec[1].split('[').collect();
-    splitted_dim = splitted_dim[1].split(']').collect();
-    // Make sure the matrix isn't empty.
-    if splitted_dim[0].is_empty() {
-        return Err("cannot use empty vector for creating a matrix in 'dim MATR(X,Y) = [x1,x2,...,xn]'!".to_string());
-    }
-    let list: Vec<&str> = splitted_dim[0].split(',').collect();
-    for (idx, value) in list.into_iter().enumerate() {
-        let parse_result_value = value.parse::<f64>();
-        if parse_result_value.is_err() {return Err(parse_result_value.unwrap_err().to_string());}
-        matr_vec[idx] = parse_result_value.unwrap();
-    }
-
-    Ok((name,Matrix::new((dimx, dimy), Some(matr_vec))))
-}
-fn op_op(codevec: Vec<&str>, matr_ptr: &mut HashMap<String, Matrix<f64>>, vars_ptr: &mut HashMap<String, f64>) -> Result<String, String> {
-    let operation = codevec[0];
-    // Inner functions
-    let is_matr = |ptr: &mut HashMap<String, Matrix<f64>>, value: &str| -> bool {ptr.contains_key(value)};
-    let is_var = |ptr: &mut HashMap<String, f64>, value: &str| -> bool {ptr.contains_key(value)};
-    
-    
-    let mut add = |matr_ptr: &mut HashMap<String, Matrix<f64>>, vars_ptr: &mut HashMap<String, f64>| -> Result<String, String> {
-        let object1 = codevec[1];
-        let object2 = codevec[2];
-        let result_name = codevec[3];
-        // Make sure it even exists in either.
-        if !is_matr(matr_ptr, object1) & !is_var(vars_ptr, object1) {
-            println!("Undeclared variable '{}' used!", object1);
-            return Err(format!("Undeclared variable '{}' used!", object1).to_string());
-        }
-        if !is_matr(matr_ptr, object2) & !is_var(vars_ptr, object2) {
-            println!("Undeclared variable '{}' used!", object2);
-            return Err(format!("Undeclared variable '{}' used!", object2).to_string());
-        }
-
-        // XOR -> Object Types Must Match.
-        if is_matr(matr_ptr, object1) ^ is_matr(matr_ptr, object2) {
-            println!("Object types must match under add op!");
-            return Err("Object types must match under add op!".to_string());
-        };
-        // If they are both matrices, make sure they are both the same dimension
-        if is_matr(matr_ptr, object1) {
-            let matr_obj1 = matr_ptr.get(object1).unwrap();
-            let matr_obj2 = matr_ptr.get(object2).unwrap();
-            if matr_obj1.dim != matr_obj2.dim {
-                println!("Dimension of '{}' doesn't match Dimension of '{}'!", object1, object2);
-                return Err(format!("Dimension of '{}' doesn't match Dimension of '{}'!", object1, object2));
-            }
-            let result_matr_obj = matr_obj1 + matr_obj2;
-            if matr_ptr.contains_key(result_name) {
-                matr_ptr.remove(result_name);
-            }
-            matr_ptr.insert(result_name.to_string(), result_matr_obj);
-        } else {
-            let var_obj1 = vars_ptr.get(object1).unwrap();
-            let var_obj2 = vars_ptr.get(object2).unwrap();
-
-            let result_var_obj = var_obj1 + var_obj2;
-            if vars_ptr.contains_key(result_name) {
-                vars_ptr.remove(result_name);
-            }
-            vars_ptr.insert(result_name.to_string(), result_var_obj);
-        };
-        Ok(String::new())
-    };
-    let mut subtract = |matr_ptr: &mut HashMap<String, Matrix<f64>>, vars_ptr: &mut HashMap<String, f64>| -> Result<String, String> {
-        let object1 = codevec[1];
-        let object2 = codevec[2];
-        let result_name = codevec[3];
-        // Make sure it even exists in either.
-        if !is_matr(matr_ptr, object1) & !is_var(vars_ptr, object1) {
-            println!("Undeclared variable '{}' used!", object1);
-            return Err(format!("Undeclared variable '{}' used!", object1).to_string());
-        }
-        if !is_matr(matr_ptr, object2) & !is_var(vars_ptr, object2) {
-            println!("Undeclared variable '{}' used!", object2);
-            return Err(format!("Undeclared variable '{}' used!", object2).to_string());
-        }
-
-        // XOR -> Object Types Must Match.
-        if is_matr(matr_ptr, object1) ^ is_matr(matr_ptr, object2) {
-            println!("Object types must match under add op!");
-            return Err("Object types must match under add op!".to_string());
-        };
-        // If they are both matrices, make sure they are both the same dimension
-        if is_matr(matr_ptr, object1) {
-            let matr_obj1 = matr_ptr.get(object1).unwrap();
-            let matr_obj2 = matr_ptr.get(object2).unwrap();
-            if matr_obj1.dim != matr_obj2.dim {
-                println!("Dimension of '{}' doesn't match Dimension of '{}'!", object1, object2);
-                return Err(format!("Dimension of '{}' doesn't match Dimension of '{}'!", object1, object2));
-            }
-            let result_matr_obj = matr_obj1 - matr_obj2;
-            if matr_ptr.contains_key(result_name) {
-                matr_ptr.remove(result_name);
-            }
-            matr_ptr.insert(result_name.to_string(), result_matr_obj);
-        } else {
-            let var_obj1 = vars_ptr.get(object1).unwrap();
-            let var_obj2 = vars_ptr.get(object2).unwrap();
-
-            let result_var_obj = var_obj1 - var_obj2;
-            if vars_ptr.contains_key(result_name) {
-                vars_ptr.remove(result_name);
-            }
-            vars_ptr.insert(result_name.to_string(), result_var_obj);
-        };
-        Ok(String::new())
-    };
-    let mut multiply = |matr_ptr: &mut HashMap<String, Matrix<f64>>, vars_ptr: &mut HashMap<String, f64>| -> Result<String, String> {
-        let object1 = codevec[1];
-        let object2 = codevec[2];
-        let result_name = codevec[3];
-        // Make sure it even exists in either.
-        if !is_matr(matr_ptr, object1) & !is_var(vars_ptr, object1) {
-            println!("Undeclared variable '{}' used!", object1);
-            return Err(format!("Undeclared variable '{}' used!", object1).to_string());
-        }
-        if !is_matr(matr_ptr, object2) & !is_var(vars_ptr, object2) {
-            println!("Undeclared variable '{}' used!", object2);
-            return Err(format!("Undeclared variable '{}' used!", object2).to_string());
-        }
-
-        // AND -> Object Types Must NOT both be matrices(unless they are both floats).
-        if is_matr(matr_ptr, object1) & is_matr(matr_ptr, object2) {
-            println!("Multiplying two matrices not supported under op!");
-            return Err("Multiplying two matrices not supported under op!".to_string());
-        };
-        // If they are both matrices, make sure they are both the same dimension
-        if is_matr(matr_ptr, object1) {
-            let matr_obj1 = matr_ptr.get(object1).unwrap();
-            let var_obj2 = vars_ptr.get(object2).unwrap();
-            
-            let result_matr_obj = matr_obj1 * var_obj2.clone();
-            if matr_ptr.contains_key(result_name) {
-                matr_ptr.remove(result_name);
-            }
-            matr_ptr.insert(result_name.to_string(), result_matr_obj);
-
-        } else if is_matr(matr_ptr, object2) {
-            let var_obj1 = vars_ptr.get(object1).unwrap();
-            let matr_obj2 = matr_ptr.get(object2).unwrap();
-            
-            let result_matr_obj = matr_obj2 * var_obj1.clone();
-            if matr_ptr.contains_key(result_name) {
-                matr_ptr.remove(result_name);
-            }
-            matr_ptr.insert(result_name.to_string(), result_matr_obj);
-        } else {
-            let var_obj1 = vars_ptr.get(object1).unwrap();
-            let var_obj2 = vars_ptr.get(object2).unwrap();
-
-            let result_var_obj = var_obj1 * var_obj2;
-            if vars_ptr.contains_key(result_name) {
-                vars_ptr.remove(result_name);
-            }
-            vars_ptr.insert(result_name.to_string(), result_var_obj);
-        };
-        Ok(String::new())
-    };
-    let mut divide = |matr_ptr: &mut HashMap<String, Matrix<f64>>, vars_ptr: &mut HashMap<String, f64>| -> Result<String, String> {
-        let object1 = codevec[1];
-        let object2 = codevec[2];
-        let result_name = codevec[3];
-        // Make sure it even exists in either.
-        if !is_matr(matr_ptr, object1) & !is_var(vars_ptr, object1) {
-             println!("Undeclared variable '{}' used!", object1);
-            return Err(format!("Undeclared variable '{}' used!", object1).to_string());
-        }
-        if !is_matr(matr_ptr, object2) & !is_var(vars_ptr, object2) {
-            println!("Undeclared variable '{}' used!", object2);
-            return Err(format!("Undeclared variable '{}' used!", object2).to_string());
-        }
-
-        // AND -> Object Types Must NOT both be matrices(unless they are both floats).
-        if is_matr(matr_ptr, object1) & is_matr(matr_ptr, object2) {
-            println!("Dividing two matrices not supported under op!");
-            return Err("Dividing two matrices not supported under op!".to_string());
-        };
-        // If they are both matrices, make sure they are both the same dimension
-        if is_matr(matr_ptr, object1) {
-            let matr_obj1 = matr_ptr.get(object1).unwrap();
-            let var_obj2 = vars_ptr.get(object2).unwrap();
-            
-            let result_matr_obj = matr_obj1 * (1_f64 / var_obj2);
-            if matr_ptr.contains_key(result_name) {
-                matr_ptr.remove(result_name);
-            }
-            matr_ptr.insert(result_name.to_string(), result_matr_obj);
-
-        } else if is_matr(matr_ptr, object2) {
-            let var_obj1 = vars_ptr.get(object1).unwrap();
-            let matr_obj2 = matr_ptr.get(object2).unwrap();
-            
-            let result_matr_obj = matr_obj2 * (1_f64 / var_obj1);
-            if matr_ptr.contains_key(result_name) {
-                matr_ptr.remove(result_name);
-            }
-            matr_ptr.insert(result_name.to_string(), result_matr_obj);
-
-        } else {
-            let var_obj1 = vars_ptr.get(object1).unwrap();
-            let var_obj2 = vars_ptr.get(object2).unwrap();
-
-            let result_var_obj = var_obj1 / var_obj2;
-            if vars_ptr.contains_key(result_name) {
-                vars_ptr.remove(result_name);
-            }
-            vars_ptr.insert(result_name.to_string(), result_var_obj);
-        };
-        Ok(String::new())
-    };
-
-    if operation == "add" {
-        return add(matr_ptr, vars_ptr);
-    } else if operation == "subtract" {
-        return subtract(matr_ptr, vars_ptr);
-    } else if operation == "multiply" {
-        return multiply(matr_ptr, vars_ptr);
-    } else if operation == "divide" {
-        return divide(matr_ptr, vars_ptr);
-    } else {
-        Err("Operation does not exist".to_string())
-    }
-
-    // Find a way to handle operations
-}
-fn call_op(codevec: Vec<&str>, matr_ptr: &mut HashMap<String, Matrix<f64>>, vars_ptr: &mut HashMap<String, f64>) -> Result<String, String> {
-    if !codevec[0].contains('(') {
-        return Err("Missing '(' in 'call FN(...)'!".to_string());
-    } else if !codevec[0].contains(')') {
-        return Err("Missing ')' in 'call FN(...)'!".to_string());
-    }
-    let mut args: Vec<&str> = codevec[0].split('(').collect();
-    let operation = args[0];
-    args = args[1].split(')').collect();
-    args = args[0].split(',').collect();
-    // Inner functions
-    let is_matr = |ptr: &mut HashMap<String, Matrix<f64>>, value: &str| -> bool {ptr.contains_key(value)};
-    let is_var = |ptr: &mut HashMap<String, f64>, value: &str| -> bool {ptr.contains_key(value)};
-    
-    
-    let mut print = |matr_ptr: &mut HashMap<String, Matrix<f64>>, vars_ptr: &mut HashMap<String, f64>| -> Result<String, String> {
-        if args.len() < 1 {
-            println!("Not enough arguments passed into print!");
-            return Err("Not enough arguments passed into print!".to_string());
-        }
-        let object1 = args[0];
-
-        // Print matrix
-        if is_matr(matr_ptr, object1) {
-            let matr_obj1 = matr_ptr.get(object1).unwrap();
-            if args.len() < 3 {
-                println!("Not enough arguments passed into print for matrix");
-                return Err("Not enough arguments passed into print for matrix!".to_string());
-            }
-            let arg1_wrapped = args[1].parse::<bool>();
-            let arg2_wrapped = args[2].parse::<bool>();
-            if arg1_wrapped.is_err() {
-                println!("Argument 1 of print for matrix is wrong; expected 'print(matr,bool,bool)'!");
-                return Err("Argument 1 of print for matrix is wrong; expected 'print(matr,bool,bool)'!".to_string())
-            }
-            if arg2_wrapped.is_err() {
-                println!("Argument 2 of print for matrix is wrong; expected 'print(matr,bool,bool)'!");
-                return Err("Argument 2 of print for matrix is wrong; expected 'print(matr,bool,bool)'!".to_string())
-            }
-            let (arg1, arg2) = (arg1_wrapped.unwrap(), arg2_wrapped.unwrap());
-            matr_obj1.print((arg1, arg2));
-            Ok(matr_obj1.matrix_str())
-
-        } else if is_var(vars_ptr, object1) {
-            if args.len() < 1 {
-                println!("Not enough arguments passed into print for float!");
-                return Err("Not enough arguments passed into print for float!".to_string());
-            }
-            let var_obj1 = vars_ptr.get(object1).unwrap();
-            println!("{}",var_obj1);
-            Ok(var_obj1.to_string())
-        } else {
-            println!("{}", object1);
-            Ok(object1.to_string())
-        }
-        
-    };
-
-    let mut nmulti = |matr_ptr: &mut HashMap<String, Matrix<f64>>, vars_ptr: &mut HashMap<String, f64>| -> Result<String, String> {
-        if codevec.len() < 3 {
-            println!("Not enough result arguments passed into naive multiplication!");
-            return Err("Not enough result arguments passed into naive multiplication!".to_string());
-        }
-        let (result_matr_name, result_multi_count_name) = (codevec[1], codevec[2]);
-        if args.len() < 2 {
-            println!("Not enough arguments passed into naive multiplication!");
-            return Err("Not enough arguments passed into naive multiplication!".to_string());
-        }
-        let object1 = args[0];
-        let object2 = args[1];
-    
-        // Make sure it even exists in either.
-        if !(is_matr(matr_ptr, object1) & is_matr(matr_ptr, object2)) {
-            println!("Not enough matrices exist!");
-            return Err("Not enough matrices exist!".to_string());
-        }
-
-        // Multiply matrix
-       
-        let matr_obj1 = matr_ptr.get(object1).unwrap();
-        let matr_obj2 = matr_ptr.get(object2).unwrap();
-        let (res, multi) = naive_method(matr_obj1, matr_obj2);
-        if res.is_err() {
-            return Err(res.unwrap_err().to_string());
-        }
-
-        if vars_ptr.contains_key(result_multi_count_name) {
-                vars_ptr.remove(result_multi_count_name);
-        }
-        vars_ptr.insert(result_multi_count_name.to_string(), multi as f64);
-        matr_ptr.insert(result_matr_name.to_string(), res.unwrap());
-        Ok(String::new())
-        
-    };
-
-    let mut smulti = |matr_ptr: &mut HashMap<String, Matrix<f64>>, vars_ptr: &mut HashMap<String, f64>| -> Result<String, String> {
-        if codevec.len() < 3 {
-            println!("Not enough result arguments passed into strassen multiplication!");
-            return Err("Not enough result arguments passed into strassen multiplication!".to_string());
-        }
-        let (result_matr_name, result_multi_count_name) = (codevec[1], codevec[2]);
-        if args.len() < 2 {
-            println!("Not enough arguments passed into strassen multiplication!");
-            return Err("Not enough arguments passed into strassen multiplication!".to_string());
-        }
-        let object1 = args[0];
-        let object2 = args[1];
-    
-        // Make sure it even exists in either.
-        if !(is_matr(matr_ptr, object1) & is_matr(matr_ptr, object2)) {
-            println!("Not enough matrices exist!");
-            return Err("Not enough matrices exist!".to_string());
-        }
-
-        // Multiply matrix
-       
-        let matr_obj1 = matr_ptr.get(object1).unwrap();
-        let matr_obj2 = matr_ptr.get(object2).unwrap();
-        let (res, multi) = strassen_method(matr_obj1, matr_obj2);
-        if res.is_err() {
-            return Err(res.unwrap_err().to_string());
-        }
-
-        if vars_ptr.contains_key(result_multi_count_name) {
-                vars_ptr.remove(result_multi_count_name);
-        }
-        vars_ptr.insert(result_multi_count_name.to_string(), multi as f64);
-        matr_ptr.insert(result_matr_name.to_string(), res.unwrap());
-        Ok(String::new())
-        
-    };
-
-    let mut rmatr = |matr_ptr: &mut HashMap<String, Matrix<f64>>, vars_ptr: &mut HashMap<String, f64>| -> Result<String, String> {
-        if codevec.len() < 2 {
-            println!("Missing destination for random_matrix!");
-            return Err("Missing destination for random_matrix!".to_string());
-        }
-        let result_matr_name = codevec[1];
-        if args.len() < 2 {
-            println!("Not enough arguments passed into random_matrix!");
-            return Err("Not enough arguments passed into random_matrix!".to_string());
-        }
-        
-        let object1 = args[0].parse::<usize>();
-        let object2 = args[1].parse::<usize>();
-        if !is_var(vars_ptr, args[0]) & object1.is_err()  {
-            return Err(object1.unwrap_err().to_string());
-        }
-        if !is_var(vars_ptr, args[1]) & object2.is_err()  {
-            return Err(object2.unwrap_err().to_string());
-        }
-
-        let mut dim1 = 0;
-        if is_var(vars_ptr, args[0]) {
-            dim1 = *vars_ptr.get(args[0]).unwrap() as usize;
-        } else {
-            dim1 = object1.unwrap();
-        }
-        let mut dim2 = 0;
-        if is_var(vars_ptr, args[1]) {
-            dim2 = *vars_ptr.get(args[1]).unwrap() as usize;
-        } else {
-            dim2 = object2.unwrap();
-        }
-        // Generate Matrix
-        let random_matr: Matrix<f64> = random_matrix((dim1, dim2));
-        matr_ptr.insert(result_matr_name.to_string(), random_matr);
-        Ok(String::new())
-        
-    };
-
-    if operation == "print" {
-        return print(matr_ptr, vars_ptr);
-    } else if operation == "naive_multiplication" {
-        return nmulti(matr_ptr, vars_ptr);
-    } else if operation == "strassen_multiplication" {
-        return smulti(matr_ptr, vars_ptr);
-    } else if operation == "random_matrix" {
-        return rmatr(matr_ptr, vars_ptr);
-    } else {
-        Err("Call function does not exist".to_string())
-    }
-
-    // Find a way to handle operations
-}
-fn loop_op(codevec: Vec<&str>) {
-    
-}
-fn export_op(codevec: Vec<&str>) {
-    
-}
-fn import_op(codevec: Vec<&str>) {
-    
 }

@@ -161,7 +161,7 @@ fn execute_fn() {
         println!("{} {}","(ERROR)".truecolor(255,0,0), "File does not exist!".truecolor(255, 100, 100));
     }
 
-    matrlang::run2(path_buf);
+    matrlang::run(path_buf);
 
 }
 
